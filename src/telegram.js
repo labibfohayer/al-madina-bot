@@ -7,30 +7,67 @@ const fs = require('fs');
 const FormData = require('form-data');
 const cheerio = require('cheerio');
 
+const VERIFIED_MADRASA_PHOTOS = [
+    "https://img.freepik.com/premium-photo/group-muslim-children-studying-quran-madrasa_73046-516.jpg?w=2000",
+    "https://img.freepik.com/premium-photo/group-muslim-children-studying-quran-madrasa_73046-585.jpg?w=2000",
+    "https://as2.ftcdn.net/jpg/04/92/50/37/1000_F_492503769_ztGwXoBCfQDwmoCZ6CE9KVAydwk40AtC.jpg",
+    "https://www.shutterstock.com/shutterstock/photos/2134069425/display_1500/stock-photo-group-of-a-children-reading-a-holy-book-quran-in-the-mosque-happy-muslim-family-muslim-girls-in-2134069425.jpg",
+    "https://as2.ftcdn.net/jpg/04/92/50/39/1000_F_492503913_lnuH9KD5ZtC2lqOlnRXzy7Ubt7mnGvSA.jpg",
+    "https://img.freepik.com/premium-photo/group-muslim-children-sitting-floor-inside-mosque-reading-quran-together-ramada_603656-4451.jpg?w=2000",
+    "https://img.freepik.com/premium-photo/group-muslim-children-reading-koran-learning-about-islam-religion-mosque-together_603656-3972.jpg?w=1380",
+    "https://img.freepik.com/premium-photo/group-children-girls-reads-holy-book-quran-inside-mosque_606562-258.jpg",
+    "https://www.shutterstock.com/shutterstock/photos/2180511737/display_1500/stock-photo-a-muslim-teacher-teaches-a-group-of-children-girls-to-read-a-holy-book-quran-inside-the-mosque-2180511737.jpg",
+    "https://img.freepik.com/premium-photo/group-muslim-children-reading-holy-books-quran-together-mosque_603656-4176.jpg?w=740",
+    "https://img.freepik.com/premium-photo/muslim-children-reading-holy-quran-ramadan_1036975-24884.jpg?w=2000",
+    "https://img.freepik.com/premium-photo/muslim-children-reading-holy-quran-ramadan_1036975-24942.jpg",
+    "https://img.freepik.com/premium-photo/muslim-children-reading-holy-quran-ramadan_1036975-25582.jpg",
+    "https://img.freepik.com/premium-photo/muslim-children-reading-holy-quran-ramadan_1036975-25389.jpg?w=2000",
+    "https://img.freepik.com/premium-photo/muslim-children-reading-holy-quran-ramadan_1036975-25645.jpg?w=2000",
+    "https://img.freepik.com/premium-photo/muslim-children-reading-holy-quran-ramadan_1036975-25880.jpg?w=900"
+];
+
+let lastImageIndex = -1;
+
+function getRandomVerifiedMadrasaPhoto() {
+    let nextIndex;
+    do {
+        nextIndex = Math.floor(Math.random() * VERIFIED_MADRASA_PHOTOS.length);
+    } while (nextIndex === lastImageIndex && VERIFIED_MADRASA_PHOTOS.length > 1);
+    lastImageIndex = nextIndex;
+    return VERIFIED_MADRASA_PHOTOS[nextIndex];
+}
+
 async function getRealImage(query) {
+    const badWords = ['transgender', 'logo', 'vector', 'clipart', 'icon', 'monument', 'tomb', 'ancient', 'poster', 'alamy.com', 'wikimedia', '.png'];
     try {
-        const res = await axios.get('https://www.bing.com/images/search?q=' + encodeURIComponent(query));
-        const $ = cheerio.load(res.data);
-        const urls = [];
-        $('a.iusc').each((i, el) => {
-            const m = $(el).attr('m');
-            if (m) {
-                try {
-                    const data = JSON.parse(m);
-                    if (data.murl) urls.push(data.murl);
-                } catch (e) {}
-            }
+        const targetedQuery = 'muslim children reading quran madrasa ' + (query || '');
+        const res = await axios.get('https://www.bing.com/images/search?q=' + encodeURIComponent(targetedQuery) + '&qft=+filterui:photo-photo', {
+            headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
+            timeout: 5000
         });
-        if (urls.length > 0) {
-            // Pick a random image from top 40 to ensure it is always fresh and unique
-            const max = Math.min(urls.length, 40);
-            const index = Math.floor(Math.random() * max);
-            return urls[index];
+        const $ = cheerio.load(res.data);
+        const validUrls = [];
+        $('a.iusc').each((i, el) => {
+            try {
+                const m = JSON.parse($(el).attr('m'));
+                if (m && m.murl) {
+                    const u = m.murl.toLowerCase();
+                    if (!badWords.some(w => u.includes(w)) && (u.includes('quran') || u.includes('madrasa') || u.includes('muslim') || u.includes('children') || u.includes('student'))) {
+                        validUrls.push(m.murl);
+                    }
+                }
+            } catch (e) {}
+        });
+
+        if (validUrls.length > 0) {
+            const pick = validUrls[Math.floor(Math.random() * Math.min(validUrls.length, 10))];
+            return pick;
         }
     } catch (e) {
-        console.error("Bing Scrape error", e.message);
+        console.error("Live search notice:", e.message);
     }
-    return 'https://upload.wikimedia.org/wikipedia/commons/2/2f/Sirajul_Islam_Madrasa.jpg'; // fallback
+
+    return getRandomVerifiedMadrasaPhoto();
 }
 
 const token = process.env.TELEGRAM_BOT_TOKEN;
@@ -126,9 +163,14 @@ bot.on('message', async (msg) => {
                         writer.on('error', reject);
                     });
                 } catch (imgErr) {
-                    console.error("Image download failed, using fallback.");
-                    imageUrl = 'https://upload.wikimedia.org/wikipedia/commons/2/2f/Sirajul_Islam_Madrasa.jpg';
-                    const response = await axios({ url: imageUrl, method: 'GET', responseType: 'stream' });
+                    console.error("Image download failed, using verified madrasa kids photo fallback.");
+                    imageUrl = getRandomVerifiedMadrasaPhoto();
+                    const response = await axios({ 
+                        url: imageUrl, 
+                        method: 'GET', 
+                        responseType: 'stream',
+                        headers: { 'User-Agent': 'Mozilla/5.0' }
+                    });
                     const writer = fs.createWriteStream(filePath);
                     response.data.pipe(writer);
                     await new Promise((resolve, reject) => {
@@ -267,9 +309,14 @@ async function sendScheduledPost() {
                 writer.on('error', reject);
             });
         } catch (imgErr) {
-            console.error("Image download failed for cron, using fallback.");
-            imageUrl = 'https://upload.wikimedia.org/wikipedia/commons/2/2f/Sirajul_Islam_Madrasa.jpg';
-            const response = await axios({ url: imageUrl, method: 'GET', responseType: 'stream' });
+            console.error("Image download failed for cron, using verified madrasa kids photo fallback.");
+            imageUrl = getRandomVerifiedMadrasaPhoto();
+            const response = await axios({ 
+                url: imageUrl, 
+                method: 'GET', 
+                responseType: 'stream',
+                headers: { 'User-Agent': 'Mozilla/5.0' }
+            });
             const writer = fs.createWriteStream(filePath);
             response.data.pipe(writer);
             await new Promise((resolve, reject) => {

@@ -128,7 +128,7 @@ async function generateAutoPostContent(topic = "") {
 JSON ফরম্যাট:
 {
     "caption": "আপনার লেখা সম্পূর্ণ নতুন ও ইউনিক বাংলা ক্যাপশন (ইমোজি, ঠিকানা ও হ্যাশট্যাগসহ)।",
-    "searchQuery": "A highly specific 3-4 word English search term related to the topic to find a real picture on Google (e.g., 'quran reading morning', 'madrasa students praying', 'beautiful islamic mosque'). DO NOT use the exact same search query as before."
+    "searchQuery": "A search term (3-4 words) strictly focusing on madrasa kids or students studying Quran (e.g. 'madrasa boys reading quran', 'children studying quran madrasa', 'hifz students quran recitation', 'muslim children reading holy quran'). NEVER search for buildings, tombs, or non-madrasa topics."
 }`;
 
         const result = await model.generateContent(prompt);
