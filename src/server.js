@@ -166,10 +166,32 @@ async function pollComments() {
     }
 }
 
-// Poll every 10 seconds
+// Poll every 10 seconds for comments
 setInterval(pollComments, 10000);
 console.log("Started comment polling fallback service...");
 
 app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
 });
+
+// ==========================================
+// Keep-Alive Self-Pinging Mechanism
+// (Prevents Render Free Tier from Sleeping)
+// ==========================================
+const PING_INTERVAL = 10 * 60 * 1000; // 10 minutes (Render sleeps after 15 mins)
+const SERVER_URL = process.env.RENDER_EXTERNAL_URL || 'https://al-madina-bot.onrender.com';
+
+function selfPing() {
+    axios.get(SERVER_URL)
+        .then(() => {
+            console.log(`[Keep-Alive] Ping successful: ${SERVER_URL} at ${new Date().toLocaleTimeString('en-US', { timeZone: 'Asia/Dhaka' })}`);
+        })
+        .catch(err => {
+            console.log(`[Keep-Alive] Ping notice: ${err.message}`);
+        });
+}
+
+// Start keep-alive ping loop
+setInterval(selfPing, PING_INTERVAL);
+// Initial ping 30 seconds after server launch
+setTimeout(selfPing, 30 * 1000);
