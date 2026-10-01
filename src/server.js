@@ -178,7 +178,7 @@ app.listen(PORT, () => {
 // Keep-Alive Self-Pinging Mechanism
 // (Prevents Render Free Tier from Sleeping)
 // ==========================================
-const PING_INTERVAL = 10 * 60 * 1000; // 10 minutes (Render sleeps after 15 mins)
+const PING_INTERVAL = 9 * 60 * 1000; // 9 minutes (Render sleeps at 15 mins)
 const SERVER_URL = process.env.RENDER_EXTERNAL_URL || 'https://al-madina-bot.onrender.com';
 
 function selfPing() {
