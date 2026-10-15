@@ -4,6 +4,27 @@ const systemPrompt = require('./systemPrompt');
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
+async function generateMessengerReply(userMessage, retries = 3) {
+    for (let attempt = 1; attempt <= retries; attempt++) {
+        try {
+            const model = genAI.getGenerativeModel({
+                model: "gemini-3.5-flash-lite",
+                systemInstruction: systemPrompt.MADRASA_INFO
+            });
+
+            const result = await model.generateContent(userMessage);
+            const response = await result.response;
+            return response.text();
+        } catch (error) {
+            console.error(`Error generating Messenger reply (Attempt ${attempt}):`, error.message);
+            if (attempt === retries) {
+                return "আসসালামু আলাইকুম। মাদ্রাসার ভর্তি ও যেকোনো তথ্যের জন্য সরাসরি আমাদের প্রিন্সিপাল মহোদয়ের সাথে যোগাযোগ করুন: 01712633264।";
+            }
+            await new Promise(r => setTimeout(r, 1000));
+        }
+    }
+}
+
 async function generateReply(userMessage, retries = 3) {
     for (let attempt = 1; attempt <= retries; attempt++) {
         try {
@@ -146,6 +167,7 @@ JSON ফরম্যাট:
 
 module.exports = {
     generateReply,
+    generateMessengerReply,
     generateCommentReply,
     generatePostCaption,
     generateAutoPostContent

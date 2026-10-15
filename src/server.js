@@ -1,7 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const axios = require('axios');
-const { generateReply, generateCommentReply } = require('./ai');
+const { generateReply, generateMessengerReply, generateCommentReply } = require('./ai');
 
 const app = express();
 app.use(express.json());
@@ -44,20 +44,38 @@ app.post('/webhook', async (req, res) => {
         for (let entry of body.entry) {
             
             // 1. Handle Messenger Messages
-            if (entry.messaging && entry.messaging[0]) {
-                let webhook_event = entry.messaging[0];
-                let sender_psid = webhook_event.sender.id;
+            if (entry.messaging && Array.isArray(entry.messaging)) {
+                for (let webhook_event of entry.messaging) {
+                    let sender_psid = webhook_event.sender ? webhook_event.sender.id : null;
+                    if (!sender_psid) continue;
 
-                if (webhook_event.message && webhook_event.message.text) {
-                    let userText = webhook_event.message.text;
-                    console.log("Received message from Messenger:", userText);
+                    // Skip echoes (messages sent by page/bot itself) or delivery/read receipts
+                    if (webhook_event.message && webhook_event.message.is_echo) {
+                        console.log("Skipping echo message.");
+                        continue;
+                    }
 
-                    const aiReply = await generateReply(userText);
-                    const chunks = aiReply.split('|||').map(s => s.trim()).filter(s => s.length > 0);
+                    let userText = null;
+                    if (webhook_event.message && webhook_event.message.text) {
+                        userText = webhook_event.message.text;
+                    } else if (webhook_event.postback && (webhook_event.postback.title || webhook_event.postback.payload)) {
+                        userText = webhook_event.postback.title || webhook_event.postback.payload;
+                    }
 
-                    for (let chunk of chunks) {
-                        await sendMessengerReply(sender_psid, chunk);
-                        await new Promise(r => setTimeout(r, 2500)); 
+                    if (userText) {
+                        console.log(`Received message from Messenger (${sender_psid}):`, userText);
+
+                        try {
+                            const aiReply = await generateMessengerReply(userText);
+                            const chunks = aiReply.split('|||').map(s => s.trim()).filter(s => s.length > 0);
+
+                            for (let chunk of chunks) {
+                                await sendMessengerReply(sender_psid, chunk);
+                                await new Promise(r => setTimeout(r, 2000)); 
+                            }
+                        } catch (err) {
+                            console.error("Error processing Messenger reply:", err.message);
+                        }
                     }
                 }
             }
@@ -97,7 +115,7 @@ async function sendMessengerReply(sender_psid, responseText) {
         await axios.post(`https://graph.facebook.com/v19.0/me/messages?access_token=${PAGE_ACCESS_TOKEN}`, request_body);
         console.log("Reply sent successfully to Messenger!");
     } catch (error) {
-        console.error("Unable to send message to Messenger:", error.response ? error.response.data : error.message);
+        console.error("Unable to send message to Messenger:", error.response ? JSON.stringify(error.response.data) : error.message);
     }
 }
 
